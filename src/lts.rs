@@ -6,27 +6,37 @@ use nom::{
     IResult,
 };
 use std::{
-    borrow::ToOwned,
-    collections::{HashMap, HashSet},
+    collections::{BTreeSet, HashMap},
     str::FromStr,
 };
 
-type State = u16;
-type Label = String;
+pub type State = u16;
+pub type Label = String;
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
-struct Lts {
-    states: HashSet<State>,
-    labels: HashSet<Label>,
-    trans: HashMap<(State, Label), State>,
+pub struct Lts {
+    states: BTreeSet<State>,
+    labels: BTreeSet<Label>,
+    trans: HashMap<(State, Label), Vec<State>>,
 }
 
 impl Lts {
+    pub fn states(&self) -> &BTreeSet<State> {
+        &self.states
+    }
+
+    pub fn transitions(&self) -> &HashMap<(State, Label), Vec<State>> {
+        &self.trans
+    }
+
     fn add_edge(&mut self, start: State, label: &str, end: State) {
         self.states.insert(start);
         self.states.insert(end);
         self.labels.insert(label.to_owned());
-        self.trans.insert((start, label.to_owned()), end);
+        self.trans
+            .entry((start, label.to_owned()))
+            .or_insert_with(Vec::new)
+            .push(end);
     }
 }
 
@@ -36,7 +46,6 @@ impl FromStr for Lts {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut lts = Lts::default();
         let (s, (_first, n_transitions, n_states)) = aut_header(s).unwrap();
-        lts.states.reserve(n_states as usize);
         lts.trans.reserve(n_transitions as usize);
         for l in s.trim().lines() {
             let (_, (start, label, end)) = aut_edge(l).unwrap();

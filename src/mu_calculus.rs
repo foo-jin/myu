@@ -6,19 +6,44 @@ use nom::{
     sequence::{delimited, separated_pair},
     IResult,
 };
-use std::str::FromStr;
+use std::{collections::BTreeSet, str::FromStr};
+
+pub type VarName = char;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-enum Formula {
+pub enum Formula {
     False,
     True,
-    Var { name: char },
+    Var { name: VarName },
     And { f1: Box<Formula>, f2: Box<Formula> },
     Or { f1: Box<Formula>, f2: Box<Formula> },
     Diamond { step: String, f: Box<Formula> },
     Box { step: String, f: Box<Formula> },
-    Mu { var: char, f: Box<Formula> },
-    Nu { var: char, f: Box<Formula> },
+    Mu { var: VarName, f: Box<Formula> },
+    Nu { var: VarName, f: Box<Formula> },
+}
+
+impl Formula {
+    pub fn variables(&self) -> BTreeSet<VarName> {
+        use Formula::*;
+        let mut vars = BTreeSet::new();
+        match self {
+            Var { name } => {
+                vars.insert(*name);
+            }
+            And { f1, f2 } | Or { f1, f2 } => {
+                vars.append(&mut f1.variables());
+                vars.append(&mut f2.variables());
+            }
+            Diamond { f, .. } | Box { f, .. } => vars.append(&mut f.variables()),
+            Mu { var, f } | Nu { var, f } => {
+                vars.insert(*var);
+                vars.append(&mut f.variables());
+            }
+            _ => (),
+        }
+        vars
+    }
 }
 
 impl FromStr for Formula {
@@ -117,7 +142,7 @@ fn parse_box(s: &str) -> ParseResult {
     Ok((s, f))
 }
 
-fn fixpoint(sigma: &'static str) -> impl Fn(&str) -> IResult<&str, (char, Box<Formula>)> {
+fn fixpoint(sigma: &'static str) -> impl Fn(&str) -> IResult<&str, (VarName, Box<Formula>)> {
     move |s| {
         let (s, _) = tag(sigma)(s)?;
         let (s, _) = space1(s)?;
@@ -144,7 +169,7 @@ fn parse_nu(s: &str) -> ParseResult {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
 
     #[test]
