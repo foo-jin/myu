@@ -9,6 +9,7 @@ use nom::{
 use std::{collections::BTreeSet, str::FromStr};
 
 pub type VarName = char;
+type ParseResult<'a> = IResult<&'a str, Formula>;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Formula {
@@ -23,26 +24,76 @@ pub enum Formula {
     Nu { var: VarName, f: Box<Formula> },
 }
 
+#[derive(Clone, Debug)]
+pub struct Subformulas<'a> {
+    children: Vec<&'a Formula>,
+}
+
+#[derive(Clone, Debug, Default)]
+struct Variables {
+    declared: BTreeSet<VarName>,
+    used: BTreeSet<VarName>,
+}
+
 impl Formula {
-    pub fn variables(&self) -> BTreeSet<VarName> {
+    pub fn subformulas(&self) -> Subformulas {
+        Subformulas {
+            children: vec![self],
+        }
+    }
+
+    pub fn is_open(&self) -> bool {
+        let vars = self.variables();
+        !vars.used.is_subset(&vars.declared)
+    }
+
+    fn variables(&self) -> Variables {
         use Formula::*;
-        let mut vars = BTreeSet::new();
+        let mut vars = Variables::default();
         match self {
             Var { name } => {
-                vars.insert(*name);
+                vars.used.insert(*name);
             }
             And { f1, f2 } | Or { f1, f2 } => {
-                vars.append(&mut f1.variables());
-                vars.append(&mut f2.variables());
+                vars = f1.variables();
+                vars.union(f2.variables());
             }
-            Diamond { f, .. } | Box { f, .. } => vars.append(&mut f.variables()),
+            Diamond { f, .. } | Box { f, .. } => vars = f.variables(),
             Mu { var, f } | Nu { var, f } => {
-                vars.insert(*var);
-                vars.append(&mut f.variables());
+                vars = f.variables();
+                vars.declared.insert(*var);
             }
             _ => (),
         }
         vars
+    }
+}
+
+impl Variables {
+    fn union(&mut self, mut other: Variables) {
+        self.declared.append(&mut other.declared);
+        self.used.append(&mut other.used);
+    }
+}
+
+impl<'a> Iterator for Subformulas<'a> {
+    type Item = &'a Formula;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        use Formula::*;
+        let item = self.children.pop();
+        if let Some(f) = item {
+            match f {
+                And { f1, f2 } => self.children.extend_from_slice(&[f1, f2]),
+                Or { f1, f2 } => self.children.extend_from_slice(&[f1, f2]),
+                Box { f, .. } => self.children.push(f),
+                Diamond { f, .. } => self.children.push(f),
+                Mu { f, .. } => self.children.push(f),
+                Nu { f, .. } => self.children.push(f),
+                _ => (),
+            }
+        }
+        item
     }
 }
 
@@ -54,8 +105,6 @@ impl FromStr for Formula {
         Ok(f)
     }
 }
-
-type ParseResult<'a> = IResult<&'a str, Formula>;
 
 fn parse_formula(s: &str) -> ParseResult {
     delimited(

@@ -45,7 +45,7 @@ impl FromStr for Lts {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut lts = Lts::default();
-        let (s, (_first, n_transitions, n_states)) = aut_header(s).unwrap();
+        let (s, (_first, n_transitions, _n_states)) = aut_header(s).unwrap();
         lts.trans.reserve(n_transitions as usize);
         for l in s.trim().lines() {
             let (_, (start, label, end)) = aut_edge(l).unwrap();

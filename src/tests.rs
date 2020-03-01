@@ -1,7 +1,7 @@
 macro_rules! generate_tests {
     () => {
         #[cfg(test)]
-        mod tests {
+        mod generated {
             use super::*;
 
             const LTS: &str = r#"des (0,14,8)
@@ -23,8 +23,9 @@ macro_rules! generate_tests {
             fn check_formula(formula: &str, expected: bool) {
                 let lts = LTS.parse::<Lts>().unwrap();
                 let f = formula.parse::<mc::Formula>().unwrap();
+                dbg!(formula);
                 let result = eval(&lts, &f);
-                dbg!(formula, &result);
+                dbg!(&result);
                 assert_eq!(result.contains(&0), expected)
             }
 
