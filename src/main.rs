@@ -6,22 +6,25 @@ mod mu_calculus;
 mod naive;
 
 use crate::{lts::Lts, mu_calculus as mc};
+use ansi_term::{Colour, Style};
+use atty::Stream;
 use std::{
     fs::File,
-    io::Read,
+    io::{self, Read, Write},
     path::PathBuf,
     sync::atomic::{AtomicU32, Ordering},
 };
-use structopt::StructOpt;
+use structopt::{clap::AppSettings, StructOpt};
 
 static ITERATIONS: AtomicU32 = AtomicU32::new(0);
 
 /// A model-checker for Labeled Transition Systems using a subset of the modal μ-calculus.
 #[derive(StructOpt)]
+#[structopt(global_settings(&[AppSettings::ColoredHelp]))]
 struct Args {
-    /// File specifying the LTS in aldebaran format
+    /// File specifying the LTS to be verified in aldebaran format
     lts: PathBuf,
-    /// File specifying the formula to be checked in modal μ-calculus.
+    /// File specifying the formula to check in modal μ-calculus.
     mcf: PathBuf,
     /// Use naive algorithm instead of the Emerson-Lei algorithm
     #[structopt(long)]
@@ -41,13 +44,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let lts = lts.parse::<Lts>().unwrap();
     let mcf = mcf_str.parse::<mc::Formula>()?;
 
-    println!("Checking formula f ≔ {}", mcf_str.trim());
+    let bold = Style::new().bold();
+    print_fancy(&format!("Checking formula ƒ ≔ {}", mcf_str.trim()), bold)?;
 
-    println!("");
-    println!(" ND(f) = {}", mcf.nesting_depth());
-    println!(" AD(f) = {}", mcf.alternation_depth());
-    println!("dAD(f) = {}", mcf.dependent_ad());
-    println!("");
+    writeln!(
+        io::stdout(),
+        "ND(ƒ) = {}    AD(ƒ) = {}    dAD(ƒ) = {}",
+        mcf.nesting_depth(),
+        mcf.alternation_depth(),
+        mcf.dependent_ad()
+    )?;
 
     let result = if args.naive {
         naive::eval(&lts, &mcf)
@@ -55,16 +61,31 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         improved::eval(&lts, &mcf)
     };
 
-    if result.contains(&lts.init()) {
-        println!("Verdict: state {} satisfies f", lts.init());
-    } else {
-        println!("Verdict: state {} does not satisfy f", lts.init());
-    }
-
-    println!(
+    writeln!(
+        io::stdout(),
         "Checking required {} fixpoint iterations",
         ITERATIONS.load(Ordering::SeqCst)
-    );
+    )?;
+
+    if result.contains(&lts.init()) {
+        print_fancy(
+            &format!("Verdict: state {} satisfies ƒ", lts.init()),
+            bold.fg(Colour::Green),
+        )?
+    } else {
+        print_fancy(
+            &format!("Verdict: state {} does not satisfy ƒ", lts.init()),
+            bold.fg(Colour::Red),
+        )?;
+    }
 
     Ok(())
+}
+
+fn print_fancy(msg: &str, style: Style) -> io::Result<()> {
+    if atty::is(Stream::Stdout) {
+        writeln!(io::stdout(), "{}", style.paint(msg))
+    } else {
+        writeln!(io::stdout(), "{}", msg)
+    }
 }
