@@ -1,0 +1,1 @@
+(mu X.nu Y.(X||Y)&& mu V. nu W. (V && mu Z.(true || Z)))
