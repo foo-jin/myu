@@ -63,6 +63,7 @@ fn eval_inner(
         Mu { var, f } => {
             let _ = env.insert(*var, BTreeSet::new());
             loop {
+                super::ITERATIONS.fetch_add(1, Ordering::SeqCst);
                 let new = eval_inner(lts, f, env);
                 let prev = env.insert(*var, new).unwrap();
                 if prev == env[var] {
@@ -73,6 +74,7 @@ fn eval_inner(
         Nu { var, f } => {
             let _ = env.insert(*var, lts.states().to_owned());
             loop {
+                super::ITERATIONS.fetch_add(1, Ordering::SeqCst);
                 let new = eval_inner(lts, f, env);
                 let prev = env.insert(*var, new).unwrap();
                 if prev == env[var] {

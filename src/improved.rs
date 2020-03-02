@@ -76,6 +76,7 @@ fn eval_inner(
                 reset_fixpoints(lts, f, env);
             }
             loop {
+                super::ITERATIONS.fetch_add(1, Ordering::SeqCst);
                 let new = eval_inner(lts, g, Some(f), env);
                 let prev = env.insert(*var, new).unwrap();
                 if prev == env[var] {
@@ -88,6 +89,7 @@ fn eval_inner(
                 reset_fixpoints(lts, f, env);
             }
             loop {
+                super::ITERATIONS.fetch_add(1, Ordering::SeqCst);
                 let new = eval_inner(lts, g, Some(f), env);
                 let prev = env.insert(*var, new).unwrap();
                 if prev == env[var] {

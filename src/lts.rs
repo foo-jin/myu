@@ -15,6 +15,7 @@ pub type Label = String;
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Lts {
+    init: State,
     states: BTreeSet<State>,
     labels: BTreeSet<Label>,
     trans: HashMap<(State, Label), Vec<State>>,
@@ -27,6 +28,10 @@ impl Lts {
 
     pub fn transitions(&self) -> &HashMap<(State, Label), Vec<State>> {
         &self.trans
+    }
+
+    pub fn init(&self) -> State {
+        self.init
     }
 
     fn add_edge(&mut self, start: State, label: &str, end: State) {
@@ -45,7 +50,8 @@ impl FromStr for Lts {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut lts = Lts::default();
-        let (s, (_first, n_transitions, _n_states)) = aut_header(s).unwrap();
+        let (s, (initial, n_transitions, _n_states)) = aut_header(s).unwrap();
+        lts.init = initial;
         lts.trans.reserve(n_transitions as usize);
         for l in s.trim().lines() {
             let (_, (start, label, end)) = aut_edge(l).unwrap();
