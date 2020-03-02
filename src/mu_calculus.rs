@@ -47,6 +47,82 @@ impl Formula {
         !vars.used.is_subset(&vars.declared)
     }
 
+    pub fn nesting_depth(&self) -> u16 {
+        use Formula::*;
+        match self {
+            True | False | Var { .. } => 0,
+            Box { f, .. } | Diamond { f, .. } => f.nesting_depth(),
+            And { f1, f2 } | Or { f1, f2 } => u16::max(f1.nesting_depth(), f2.nesting_depth()),
+            Mu { f, .. } | Nu { f, .. } => 1 + f.nesting_depth(),
+        }
+    }
+
+    pub fn alternation_depth(&self) -> u16 {
+        use Formula::*;
+        match self {
+            True | False | Var { .. } => 0,
+            Box { f, .. } | Diamond { f, .. } => f.alternation_depth(),
+            And { f1, f2 } | Or { f1, f2 } => {
+                u16::max(f1.alternation_depth(), f2.alternation_depth())
+            }
+            Mu { f, .. } => 1.max(f.alternation_depth()).max(
+                1 + f
+                    .subformulas()
+                    .filter(|g| g.is_nu())
+                    .map(|g| g.alternation_depth())
+                    .max()
+                    .unwrap_or(0),
+            ),
+            Nu { f, .. } => 1.max(f.alternation_depth()).max(
+                1 + f
+                    .subformulas()
+                    .filter(|g| g.is_mu())
+                    .map(|g| g.alternation_depth())
+                    .max()
+                    .unwrap_or(0),
+            ),
+        }
+    }
+
+    pub fn dependent_ad(&self) -> u16 {
+        use Formula::*;
+        match self {
+            True | False | Var { .. } => 0,
+            Box { f, .. } | Diamond { f, .. } => f.dependent_ad(),
+            And { f1, f2 } | Or { f1, f2 } => u16::max(f1.dependent_ad(), f2.dependent_ad()),
+            Mu { var, f } => 1.max(f.dependent_ad()).max(
+                1 + f
+                    .subformulas()
+                    .filter(|g| g.is_nu() && g.variables().used.contains(&var))
+                    .map(|g| g.dependent_ad())
+                    .max()
+                    .unwrap_or(0),
+            ),
+            Nu { var, f } => 1.max(f.dependent_ad()).max(
+                1 + f
+                    .subformulas()
+                    .filter(|g| g.is_mu() && g.variables().used.contains(&var))
+                    .map(|g| g.dependent_ad())
+                    .max()
+                    .unwrap_or(0),
+            ),
+        }
+    }
+
+    pub fn is_mu(&self) -> bool {
+        match self {
+            Formula::Mu { .. } => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_nu(&self) -> bool {
+        match self {
+            Formula::Nu { .. } => true,
+            _ => false,
+        }
+    }
+
     fn variables(&self) -> Variables {
         use Formula::*;
         let mut vars = Variables::default();
@@ -375,5 +451,19 @@ mod tests {
                 })
             })
         );
+    }
+
+    #[test]
+    fn depth_measures() {
+        let f = "(mu X.nu Y.(X||Y)&& mu V. mu W. (V && mu Z.(true || Z)))"
+            .parse::<Formula>()
+            .unwrap();
+        assert_eq!(f.nesting_depth(), 3);
+
+        let f = "(mu X.nu Y.(X||Y)&& mu V. nu W. (V && mu Z.(true || Z)))"
+            .parse::<Formula>()
+            .unwrap();
+        assert_eq!(f.alternation_depth(), 3);
+        assert_eq!(f.dependent_ad(), 2);
     }
 }
