@@ -1,15 +1,19 @@
-use nom::{
-    branch::alt,
-    bytes::complete::tag,
-    character::complete::{alphanumeric1, anychar, space0, space1},
-    combinator::{all_consuming, recognize, value, verify},
-    sequence::{delimited, separated_pair},
-    IResult,
+use combine::{
+    between, choice, eof,
+    error::ParseError,
+    parser,
+    parser::{
+        char::{char, space, spaces, string, upper},
+        regex::find,
+    },
+    skip_many1,
+    stream::{position, RangeStream},
+    EasyParser, Parser,
 };
+use regex::Regex;
 use std::{collections::BTreeSet, str::FromStr};
 
 pub type VarName = char;
-type ParseResult<'a> = IResult<&'a str, Formula>;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Formula {
@@ -37,9 +41,7 @@ struct Variables {
 
 impl Formula {
     pub fn subformulas(&self) -> Subformulas {
-        Subformulas {
-            children: vec![self],
-        }
+        Subformulas { children: vec![self] }
     }
 
     pub fn is_open(&self) -> bool {
@@ -52,7 +54,9 @@ impl Formula {
         match self {
             True | False | Var { .. } => 0,
             Box { f, .. } | Diamond { f, .. } => f.nesting_depth(),
-            And { f1, f2 } | Or { f1, f2 } => u16::max(f1.nesting_depth(), f2.nesting_depth()),
+            And { f1, f2 } | Or { f1, f2 } => {
+                u16::max(f1.nesting_depth(), f2.nesting_depth())
+            }
             Mu { f, .. } | Nu { f, .. } => 1 + f.nesting_depth(),
         }
     }
@@ -89,7 +93,9 @@ impl Formula {
         match self {
             True | False | Var { .. } => 0,
             Box { f, .. } | Diamond { f, .. } => f.dependent_ad(),
-            And { f1, f2 } | Or { f1, f2 } => u16::max(f1.dependent_ad(), f2.dependent_ad()),
+            And { f1, f2 } | Or { f1, f2 } => {
+                u16::max(f1.dependent_ad(), f2.dependent_ad())
+            }
             Mu { var, f } => 1.max(f.dependent_ad()).max(
                 1 + f
                     .subformulas()
@@ -177,120 +183,76 @@ impl FromStr for Formula {
     type Err = &'static str;
 
     fn from_str(s: &str) -> Result<Formula, Self::Err> {
-        let (_, f) = all_consuming(parse_formula)(s.trim()).unwrap();
+        let ((f, _), _) =
+            formula().and(eof()).easy_parse(position::Stream::new(s)).unwrap();
         Ok(f)
     }
 }
 
-fn parse_formula(s: &str) -> ParseResult {
-    delimited(
-        space0,
-        alt((
-            parse_true,
-            parse_false,
-            parse_var,
-            parse_and,
-            parse_or,
-            parse_diamond,
-            parse_box,
-            parse_mu,
-            parse_nu,
+parser! {
+    fn formula['a, I]()(I) -> Formula
+    where [I: RangeStream<Token=char, Range=&'a str> + 'a,
+       I::Error: ParseError<I::Token, I::Range, I::Position>,]
+    {
+    formula_()
+    }
+}
+
+fn formula_<'a, I>() -> impl Parser<I, Output = Formula> + 'a
+where
+    I: RangeStream<Token = char, Range = &'a str> + 'a,
+    I::Error: ParseError<I::Token, I::Range, I::Position>,
+{
+    let true_lit = string("true").map(|_| Formula::True);
+    let false_lit = string("false").map(|_| Formula::False);
+    let var = upper().map(|c| Formula::Var { name: c });
+    let boolean_op = between(
+        char('('),
+        char(')'),
+        (formula(), string("&&").or(string("||")), formula()),
+    )
+    .map(|(f1, op, f2)| match op {
+        "&&" => Formula::And { f1: Box::new(f1), f2: Box::new(f2) },
+        "||" => Formula::Or { f1: Box::new(f1), f2: Box::new(f2) },
+        _ => unreachable!(),
+    });
+    let action = Regex::new(r"^[a-z][a-z0-9_]*").unwrap();
+    let modal = |open, close| {
+        between(char(open), char(close), find(action.clone())).and(formula())
+    };
+    let diamond_modal = modal('<', '>').map(|(step, f): (&'a str, Formula)| {
+        Formula::Diamond { step: step.to_owned(), f: Box::new(f) }
+    });
+    let box_modal = modal('[', ']').map(|(step, f): (&'a str, Formula)| {
+        Formula::Box { step: step.to_owned(), f: Box::new(f) }
+    });
+    let fixpoint = |sigma| {
+        (
+            string(sigma).skip(skip_many1(space())),
+            upper().skip(spaces()),
+            char('.'),
+            formula(),
+        )
+    };
+    let mu = fixpoint("mu")
+        .map(|(_, var, _, g)| Formula::Mu { var, f: Box::new(g) });
+    let nu = fixpoint("nu")
+        .map(|(_, var, _, g)| Formula::Nu { var, f: Box::new(g) });
+
+    between(
+        spaces(),
+        spaces(),
+        choice((
+            true_lit,
+            false_lit,
+            var,
+            boolean_op,
+            diamond_modal,
+            box_modal,
+            mu,
+            nu,
         )),
-        space0,
-    )(s)
-}
-
-fn parse_true(s: &str) -> ParseResult {
-    value(Formula::True, tag("true"))(s)
-}
-
-fn parse_false(s: &str) -> ParseResult {
-    value(Formula::False, tag("false"))(s)
-}
-
-fn parse_var(s: &str) -> ParseResult {
-    let (s, c) = verify(recognize(anychar), |s: &str| {
-        s.starts_with(|c: char| c.is_ascii_uppercase())
-    })(s)?;
-    Ok((
-        s,
-        Formula::Var {
-            name: c.chars().next().unwrap(),
-        },
-    ))
-}
-
-fn binary_operator(op: &'static str) -> impl Fn(&str) -> IResult<&str, (Formula, Formula)> {
-    move |s: &str| {
-        let (s, _) = tag("(")(s)?;
-        let (s, (f1, f2)) = separated_pair(parse_formula, tag(op), parse_formula)(s)?;
-        let (s, _) = tag(")")(s)?;
-        Ok((s, (f1, f2)))
-    }
-}
-
-fn parse_and(s: &str) -> ParseResult {
-    let (s, (f1, f2)) = binary_operator("&&")(s)?;
-    let f = Formula::And {
-        f1: Box::new(f1),
-        f2: Box::new(f2),
-    };
-    Ok((s, f))
-}
-
-fn parse_or(s: &str) -> ParseResult {
-    let (s, (f1, f2)) = binary_operator("||")(s)?;
-    let f = Formula::Or {
-        f1: Box::new(f1),
-        f2: Box::new(f2),
-    };
-    Ok((s, f))
-}
-
-fn parse_diamond(s: &str) -> ParseResult {
-    let (s, step) = delimited(tag("<"), alphanumeric1, tag(">"))(s)?;
-    let (s, f1) = parse_formula(s)?;
-    let f = Formula::Diamond {
-        step: step.to_string(),
-        f: Box::new(f1),
-    };
-    Ok((s, f))
-}
-
-fn parse_box(s: &str) -> ParseResult {
-    let (s, step) = delimited(tag("["), alphanumeric1, tag("]"))(s)?;
-    let (s, f1) = parse_formula(s)?;
-    let f = Formula::Box {
-        step: step.to_string(),
-        f: Box::new(f1),
-    };
-    Ok((s, f))
-}
-
-fn fixpoint(sigma: &'static str) -> impl Fn(&str) -> IResult<&str, (VarName, Box<Formula>)> {
-    move |s| {
-        let (s, _) = tag(sigma)(s)?;
-        let (s, _) = space1(s)?;
-        let (s, var) = verify(recognize(anychar), |s: &str| {
-            s.starts_with(|c: char| c.is_ascii_uppercase())
-        })(s)?;
-        let (s, _) = tag(".")(s)?;
-        let (s, f1) = parse_formula(s)?;
-        let var = var.chars().next().unwrap();
-        Ok((s, (var, Box::new(f1))))
-    }
-}
-
-fn parse_mu(s: &str) -> ParseResult {
-    let (s, (var, f1)) = fixpoint("mu")(s)?;
-    let f = Formula::Mu { var, f: f1 };
-    Ok((s, f))
-}
-
-fn parse_nu(s: &str) -> ParseResult {
-    let (s, (var, f1)) = fixpoint("nu")(s)?;
-    let f = Formula::Nu { var, f: f1 };
-    Ok((s, f))
+    )
 }
 
 #[cfg(test)]

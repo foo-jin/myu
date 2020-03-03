@@ -1,9 +1,10 @@
-use nom::{
-    bytes::complete::{is_not, tag},
-    character::complete::{digit1, space1},
-    combinator::map_res,
-    sequence::delimited,
-    IResult,
+use combine::{
+    between, from_str,
+    parser::{
+        char::{char, space, string},
+        range::take_while1,
+    },
+    skip_many1, EasyParser, Parser,
 };
 use std::{
     collections::{BTreeSet, HashMap},
@@ -49,42 +50,42 @@ impl FromStr for Lts {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let int = || from_str(take_while1(|c: char| c.is_digit(10)));
+        let aut_header = || {
+            (
+                string("des").skip(skip_many1(space())).skip(char('(')),
+                int().skip(char(',')),
+                int().skip(char(',')),
+                int().skip(char(')')),
+            )
+        };
+        let aut_edge = || {
+            between(
+                char('('),
+                char(')'),
+                (
+                    int(),
+                    between(
+                        string(r#",""#),
+                        string(r#"","#),
+                        take_while1(|c: char| c != '"'),
+                    ),
+                    int(),
+                ),
+            )
+        };
+
         let mut lts = Lts::default();
-        let (s, (initial, n_transitions, _n_states)) = aut_header(s).unwrap();
+        let ((_, initial, n_transitions, _n_states), s) =
+            aut_header().easy_parse(s).unwrap();
         lts.init = initial;
         lts.trans.reserve(n_transitions as usize);
         for l in s.trim().lines() {
-            let (_, (start, label, end)) = aut_edge(l).unwrap();
+            let ((start, label, end), _) = aut_edge().easy_parse(l).unwrap();
             lts.add_edge(start, label, end);
         }
         Ok(lts)
     }
-}
-
-fn parse_int(s: &str) -> IResult<&str, u16> {
-    map_res(digit1, str::parse::<u16>)(s)
-}
-
-fn aut_header(s: &str) -> IResult<&str, (State, u16, u16)> {
-    let (s, _) = tag("des")(s)?;
-    let (s, _) = space1(s)?;
-    let (s, _) = tag("(")(s)?;
-    let (s, first_state) = parse_int(s)?;
-    let (s, _) = tag(",")(s)?;
-    let (s, n_transitions) = parse_int(s)?;
-    let (s, _) = tag(",")(s)?;
-    let (s, n_states) = parse_int(s)?;
-    let (s, _) = tag(")")(s)?;
-    Ok((s, (first_state, n_transitions, n_states)))
-}
-
-fn aut_edge(s: &str) -> IResult<&str, (State, &str, State)> {
-    let (s, _) = tag("(")(s)?;
-    let (s, start) = parse_int(s)?;
-    let (s, label) = delimited(tag(",\""), is_not("\""), tag("\","))(s)?;
-    let (s, end) = parse_int(s)?;
-    let (s, _) = tag(")")(s)?;
-    Ok((s, (start, label, end)))
 }
 
 #[cfg(test)]
