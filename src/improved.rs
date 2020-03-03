@@ -9,10 +9,10 @@ pub fn eval(lts: &Lts, f: &mc::Formula) -> BTreeSet<lts::State> {
         match g {
             mc::Formula::Mu { var, .. } => {
                 env.insert(*var, BTreeSet::new());
-            }
+            },
             mc::Formula::Nu { var, .. } => {
                 env.insert(*var, lts.states().to_owned());
-            }
+            },
             _ => (),
         }
     }
@@ -54,7 +54,7 @@ fn eval_inner(
                 .filter(|(_s, ts)| ts.iter().any(|t| sat.contains(t)))
                 .map(|(s, _ts)| s)
                 .collect()
-        }
+        },
         Box { step, f: g } => {
             let sat = eval_inner(lts, g, prev_fixpoint, env);
             lts.states()
@@ -70,7 +70,7 @@ fn eval_inner(
                 .filter(|(_s, ts)| ts.iter().all(|t| sat.contains(t)))
                 .map(|(s, _ts)| s)
                 .collect()
-        }
+        },
         Mu { var, f: g } => {
             if let Some(Nu { .. }) = prev_fixpoint {
                 reset_fixpoints(lts, f, env);
@@ -83,7 +83,7 @@ fn eval_inner(
                     break prev;
                 }
             }
-        }
+        },
         Nu { var, f: g } => {
             if let Some(Mu { .. }) = prev_fixpoint {
                 reset_fixpoints(lts, f, env);
@@ -96,7 +96,7 @@ fn eval_inner(
                     break prev;
                 }
             }
-        }
+        },
     }
 }
 
@@ -110,13 +110,13 @@ fn reset_fixpoints(
         Mu { .. } => f.subformulas().for_each(|g| match g {
             Mu { var, .. } if g.is_open() => {
                 env.insert(*var, BTreeSet::new());
-            }
+            },
             _ => (),
         }),
         Nu { .. } => f.subformulas().for_each(|g| match g {
             Nu { var, .. } if g.is_open() => {
                 env.insert(*var, lts.states().to_owned());
-            }
+            },
             _ => (),
         }),
         _ => panic!("Cannot reset non-fixpoint operators."),

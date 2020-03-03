@@ -43,7 +43,7 @@ fn eval_inner(
                 .filter(|(_s, ts)| ts.iter().any(|t| sat.contains(t)))
                 .map(|(s, _ts)| s)
                 .collect()
-        }
+        },
         Box { step, f } => {
             let sat = eval_inner(lts, f, env);
             lts.states()
@@ -59,7 +59,7 @@ fn eval_inner(
                 .filter(|(_s, ts)| ts.iter().all(|t| sat.contains(t)))
                 .map(|(s, _ts)| s)
                 .collect()
-        }
+        },
         Mu { var, f } => {
             let _ = env.insert(*var, BTreeSet::new());
             loop {
@@ -70,7 +70,7 @@ fn eval_inner(
                     break prev;
                 }
             }
-        }
+        },
         Nu { var, f } => {
             let _ = env.insert(*var, lts.states().to_owned());
             loop {
@@ -81,7 +81,7 @@ fn eval_inner(
                     break prev;
                 }
             }
-        }
+        },
     }
 }
 

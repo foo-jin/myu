@@ -63,11 +63,17 @@ macro_rules! generate_tests {
             #[test]
             fn combined() {
                 // all except 3, 5, 7
-                check_formula("nu X. (<tau>X && mu Y. (<tau>Y || [a]false))", true);
+                check_formula(
+                    "nu X. (<tau>X && mu Y. (<tau>Y || [a]false))",
+                    true,
+                );
                 check_formula("nu X. <tau>X", true); // all except 3, 5, 7
                 check_formula("nu X. mu Y. ( <tau>Y || <a>X)", true); // all except 7
                 check_formula("nu X. mu Y. ( (<tau>Y || <a>Y) || <b>X)", true); // everything
-                check_formula("mu X. ([tau]X && (<tau>true || <a>true))", false); // only 3, 5
+                check_formula(
+                    "mu X. ([tau]X && (<tau>true || <a>true))",
+                    false,
+                ); // only 3, 5
             }
         }
     };
