@@ -7,6 +7,7 @@ mod naive;
 
 use crate::{lts::Lts, mu_calculus as mc};
 use ansi_term::{Colour, Style};
+use anyhow::Context;
 use atty::Stream;
 use std::{
     fs::File,
@@ -15,6 +16,7 @@ use std::{
     sync::atomic::{AtomicU32, Ordering},
 };
 use structopt::{clap::AppSettings, StructOpt};
+use thiserror::Error;
 
 static ITERATIONS: AtomicU32 = AtomicU32::new(0);
 
@@ -31,18 +33,33 @@ struct Args {
     naive: bool,
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+#[derive(Error, Debug, Eq, PartialEq)]
+pub enum MyuError {
+    #[error("failed to parse μ-calculus formula: {0}")]
+    McfParseError(String),
+    #[error("failed to parse labeled transition system: {0}")]
+    LtsParseError(String),
+}
+
+fn run() -> anyhow::Result<()> {
     let args = Args::from_args();
-    let mut lts_file = File::open(args.lts)?;
+    let mut lts_file = File::open(&args.lts)
+        .with_context(|| format!("failed to open {:#?}", &args.lts))?;
     let mut lts = String::new();
-    lts_file.read_to_string(&mut lts)?;
+    lts_file
+        .read_to_string(&mut lts)
+        .with_context(|| format!("failed to read from {:#?}", &args.lts))?;
 
-    let mut mcf_file = File::open(args.mcf)?;
+    let mut mcf_file = File::open(&args.mcf)
+        .with_context(|| format!("failed to open {:#?}", &args.mcf))?;
     let mut mcf_str = String::new();
-    mcf_file.read_to_string(&mut mcf_str)?;
+    mcf_file
+        .read_to_string(&mut mcf_str)
+        .with_context(|| format!("failed to read from {:#?}", &args.mcf))?;
 
-    let lts = lts.parse::<Lts>().unwrap();
-    let mcf = mcf_str.parse::<mc::Formula>()?;
+    let lts = lts.parse::<Lts>()?;
+    let mcf =
+        mcf_str.parse::<mc::Formula>().map_err(MyuError::McfParseError)?;
 
     let bold = Style::new().bold();
     print_fancy(&format!("Checking formula ƒ ≔ {}", mcf_str.trim()), bold)?;
@@ -80,6 +97,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
+}
+
+fn main() {
+    if let Err(e) = run() {
+        if atty::is(Stream::Stderr) {
+            write!(
+                io::stderr(),
+                "{}: {:#}",
+                Colour::Red.paint("[myu error]"),
+                e
+            )
+            .unwrap()
+        } else {
+            write!(io::stderr(), "[myu error]: {:#}", e).unwrap()
+        }
+    }
 }
 
 fn print_fancy(msg: &str, style: Style) -> io::Result<()> {

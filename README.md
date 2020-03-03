@@ -34,6 +34,5 @@ ARGS:
 ```
 
 ## Known quirks
-* Errors are illegible -- sorry for that.
 * *myu* does not implement variable shadowing; given a formula with variables declared more than once, the expected behaviour is undefined.
 * *myu* does not know how to deal with top-level open variables; if the top-level formula contains open-variables *myu* will panic.

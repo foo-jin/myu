@@ -1,10 +1,13 @@
+use crate::MyuError;
 use combine::{
-    between, from_str,
+    between, eof, from_str, look_ahead,
     parser::{
-        char::{char, space, string},
+        char::{char, newline, space, spaces, string},
         range::take_while1,
     },
-    skip_many1, EasyParser, Parser,
+    skip_many1,
+    stream::position,
+    EasyParser, Parser,
 };
 use std::{
     collections::{BTreeSet, HashMap},
@@ -47,7 +50,7 @@ impl Lts {
 }
 
 impl FromStr for Lts {
-    type Err = ();
+    type Err = MyuError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let int = || from_str(take_while1(|c: char| c.is_digit(10)));
@@ -76,14 +79,24 @@ impl FromStr for Lts {
         };
 
         let mut lts = Lts::default();
-        let ((_, initial, n_transitions, _n_states), s) =
-            aut_header().easy_parse(s).unwrap();
+        let ((_, initial, n_transitions, _n_states), mut s) = aut_header()
+            .easy_parse(position::Stream::new(s))
+            .map_err(|e| MyuError::LtsParseError(e.to_string()))?;
         lts.init = initial;
         lts.trans.reserve(n_transitions as usize);
-        for l in s.trim().lines() {
-            let ((start, label, end), _) = aut_edge().easy_parse(l).unwrap();
+
+        while let Ok((_, mut rest)) = newline().easy_parse(s) {
+            if look_ahead(spaces().and(eof())).parse(&mut rest).is_ok() {
+                break;
+            }
+
+            let ((start, label, end), rest) = aut_edge()
+                .easy_parse(rest)
+                .map_err(|e| MyuError::LtsParseError(e.to_string()))?;
             lts.add_edge(start, label, end);
+            s = rest;
         }
+
         Ok(lts)
     }
 }

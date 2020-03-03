@@ -177,12 +177,14 @@ impl<'a> Iterator for Subformulas<'a> {
 }
 
 impl FromStr for Formula {
-    type Err = &'static str;
+    type Err = String;
 
     fn from_str(s: &str) -> Result<Formula, Self::Err> {
-        let ((f, _), _) =
-            formula().and(eof()).easy_parse(position::Stream::new(s)).unwrap();
-        Ok(f)
+        formula()
+            .and(eof())
+            .easy_parse(position::Stream::new(s))
+            .map(|((f, _), _)| f)
+            .map_err(|e| e.to_string())
     }
 }
 
