@@ -1,6 +1,6 @@
 use crate::MyuError;
 use combine::{
-    between, eof, from_str, look_ahead,
+    between, eof, from_str,
     parser::{
         char::{char, newline, space, spaces, string},
         range::take_while1,
@@ -54,6 +54,7 @@ impl FromStr for Lts {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let int = || from_str(take_while1(|c: char| c.is_digit(10)));
+        let non_newline_spaces = || skip_many(char(' ').or(char('\t')));
         let aut_header = || {
             (
                 string("des").skip(skip_many1(space())).skip(char('(')),
@@ -86,9 +87,9 @@ impl FromStr for Lts {
         lts.trans.reserve(n_transitions as usize);
 
         while let Ok((_, mut rest)) =
-            skip_many(char(' ').or(char('\t'))).and(newline()).easy_parse(s)
+            non_newline_spaces().and(newline()).skip(spaces()).easy_parse(s)
         {
-            if look_ahead(spaces().and(eof())).parse(&mut rest).is_ok() {
+            if eof().parse(&mut rest).is_ok() {
                 break;
             }
 

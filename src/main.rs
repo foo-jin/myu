@@ -6,7 +6,7 @@ mod mu_calculus;
 mod naive;
 
 use crate::{lts::Lts, mu_calculus as mc};
-use ansi_term::{Colour, Style};
+use ansi_term::Colour;
 use anyhow::Context;
 use atty::Stream;
 use std::{
@@ -61,8 +61,8 @@ fn run() -> anyhow::Result<()> {
     let mcf =
         mcf_str.parse::<mc::Formula>().map_err(MyuError::McfParseError)?;
 
-    let bold = Style::new().bold();
-    print_fancy(&format!("Checking formula ƒ ≔ {}", mcf_str.trim()), bold)?;
+    writeln!(io::stdout(), "Begin checking {:?}...", &args.mcf)?;
+    writeln!(io::stdout(), "Let ƒ ≔ {}", mcf)?;
 
     writeln!(
         io::stdout(),
@@ -78,6 +78,20 @@ fn run() -> anyhow::Result<()> {
         improved::eval(&lts, &mcf)
     };
 
+    write!(io::stdout(), "ƒ = {{")?;
+    let mut first = true;
+    for s in result.iter().take(20) {
+        if !first {
+            write!(io::stdout(), ", ")?;
+        }
+        write!(io::stdout(), "{}", s)?;
+        first = false;
+    }
+    if result.len() > 20 {
+        write!(io::stdout(), ", and {} more", result.len() - 20)?;
+    }
+    writeln!(io::stdout(), "}}")?;
+
     writeln!(
         io::stdout(),
         "Checking required {} fixpoint iterations",
@@ -87,12 +101,12 @@ fn run() -> anyhow::Result<()> {
     if result.contains(&lts.init()) {
         print_fancy(
             &format!("Verdict: state {} satisfies ƒ", lts.init()),
-            bold.fg(Colour::Green),
+            Colour::Green,
         )?
     } else {
         print_fancy(
             &format!("Verdict: state {} does not satisfy ƒ", lts.init()),
-            bold.fg(Colour::Red),
+            Colour::Red,
         )?;
     }
 
@@ -102,22 +116,16 @@ fn run() -> anyhow::Result<()> {
 fn main() {
     if let Err(e) = run() {
         if atty::is(Stream::Stderr) {
-            write!(
-                io::stderr(),
-                "{}: {:#}",
-                Colour::Red.paint("[myu error]"),
-                e
-            )
-            .unwrap()
+            eprint!("{}: {:#}", Colour::Red.paint("[myu error]"), e)
         } else {
-            write!(io::stderr(), "[myu error]: {:#}", e).unwrap()
+            eprint!("[myu error]: {:#}", e)
         }
     }
 }
 
-fn print_fancy(msg: &str, style: Style) -> io::Result<()> {
+fn print_fancy(msg: &str, c: Colour) -> io::Result<()> {
     if atty::is(Stream::Stdout) {
-        writeln!(io::stdout(), "{}", style.paint(msg))
+        writeln!(io::stdout(), "{}", c.paint(msg))
     } else {
         writeln!(io::stdout(), "{}", msg)
     }

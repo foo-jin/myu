@@ -1,6 +1,6 @@
 mod parser;
 
-use std::{collections::BTreeSet, str::FromStr};
+use std::{collections::BTreeSet, fmt, str::FromStr};
 
 pub type VarName = char;
 
@@ -175,6 +175,24 @@ impl FromStr for Formula {
             .easy_parse(position::Stream::new(s))
             .map(|((f, _), _)| f)
             .map_err(|e| e.to_string())
+    }
+}
+
+impl fmt::Display for Formula {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        use Formula::*;
+
+        match self {
+            False => write!(fmt, "false"),
+            True => write!(fmt, "true"),
+            Var { name } => write!(fmt, "{}", name),
+            And { f1, f2 } => write!(fmt, "({} && {})", f1, f2),
+            Or { f1, f2 } => write!(fmt, "({} || {})", f1, f2),
+            Diamond { step, f } => write!(fmt, "<{}>{}", step, f),
+            Box { step, f } => write!(fmt, "[{}]{}", step, f),
+            Mu { var, f } => write!(fmt, "mu {}. {}", var, f),
+            Nu { var, f } => write!(fmt, "nu {}. {}", var, f),
+        }
     }
 }
 
