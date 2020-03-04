@@ -5,7 +5,7 @@ use combine::{
         char::{char, newline, space, spaces, string},
         range::take_while1,
     },
-    skip_many1,
+    skip_many, skip_many1,
     stream::position,
     EasyParser, Parser,
 };
@@ -85,7 +85,9 @@ impl FromStr for Lts {
         lts.init = initial;
         lts.trans.reserve(n_transitions as usize);
 
-        while let Ok((_, mut rest)) = newline().easy_parse(s) {
+        while let Ok((_, mut rest)) =
+            skip_many(char(' ').or(char('\t'))).and(newline()).easy_parse(s)
+        {
             if look_ahead(spaces().and(eof())).parse(&mut rest).is_ok() {
                 break;
             }
@@ -136,5 +138,37 @@ mod tests {
         expected.add_edge(9, "free(p1, f2)", 0);
 
         assert_eq!(input.parse::<Lts>(), Ok(expected));
+
+        let input = "des (0,12,10)        \n\
+(0,\"i\",1)
+(0,\"i\",2)
+(1,\"i\",3)
+(1,\"i\",4)
+(2,\"i\",5)
+(2,\"i\",4)
+(3,\"others\",6)
+(5,\"plato\",7)
+(6,\"i\",8)
+(7,\"i\",9)
+(8,\"i\",0)
+(9,\"i\",0)
+";
+
+        let mut expected = Lts::default();
+        expected.add_edge(0, "i", 1);
+        expected.add_edge(0, "i", 2);
+        expected.add_edge(1, "i", 3);
+        expected.add_edge(1, "i", 4);
+        expected.add_edge(2, "i", 5);
+        expected.add_edge(2, "i", 4);
+        expected.add_edge(3, "others", 6);
+        expected.add_edge(5, "plato", 7);
+        expected.add_edge(6, "i", 8);
+        expected.add_edge(7, "i", 9);
+        expected.add_edge(8, "i", 0);
+        expected.add_edge(9, "i", 0);
+
+        let result = input.parse::<Lts>();
+        assert_eq!(result, Ok(expected));
     }
 }
