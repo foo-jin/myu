@@ -14,7 +14,7 @@ use std::{
     str::FromStr,
 };
 
-pub type State = u16;
+pub type State = u32;
 pub type Label = String;
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
