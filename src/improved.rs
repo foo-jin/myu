@@ -11,7 +11,7 @@ pub fn eval(lts: &Lts, f: &mc::Formula) -> BTreeSet<lts::State> {
                 env.insert(*var, BTreeSet::new());
             },
             mc::Formula::Nu { var, .. } => {
-                env.insert(*var, lts.states().to_owned());
+                env.insert(*var, lts.states().clone());
             },
             _ => (),
         }
@@ -97,7 +97,7 @@ fn reset_fixpoints(
         }),
         Nu { .. } => f.subformulas().for_each(|g| match g {
             Nu { var, .. } if g.is_open() => {
-                env.insert(*var, lts.states().to_owned());
+                env.insert(*var, lts.states().clone());
             },
             _ => (),
         }),

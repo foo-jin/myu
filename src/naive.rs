@@ -53,7 +53,7 @@ fn eval_inner(
             }
         },
         Nu { var, f } => {
-            let _ = env.insert(*var, lts.states().to_owned());
+            let _ = env.insert(*var, lts.states().clone());
             loop {
                 super::ITERATIONS.fetch_add(1, Ordering::SeqCst);
                 let new = eval_inner(lts, f, env);

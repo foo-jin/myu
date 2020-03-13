@@ -44,7 +44,7 @@ impl Formula {
             True | False | Var { .. } => 0,
             Box { f, .. } | Diamond { f, .. } => f.nesting_depth(),
             And { f1, f2 } | Or { f1, f2 } =>
-                u16::max(f1.nesting_depth(), f2.nesting_depth()),
+                f1.nesting_depth().max(f2.nesting_depth()),
             Mu { f, .. } | Nu { f, .. } => 1 + f.nesting_depth(),
         }
     }
@@ -55,7 +55,7 @@ impl Formula {
             True | False | Var { .. } => 0,
             Box { f, .. } | Diamond { f, .. } => f.alternation_depth(),
             And { f1, f2 } | Or { f1, f2 } =>
-                u16::max(f1.alternation_depth(), f2.alternation_depth()),
+                f1.alternation_depth().max(f2.alternation_depth()),
             Mu { f, .. } => 1.max(f.alternation_depth()).max(
                 1 + f
                     .subformulas()
