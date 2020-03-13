@@ -41,32 +41,14 @@ fn eval_inner(
             .collect(),
         Diamond { step, f: g } => {
             let sat = eval_inner(lts, g, prev_fixpoint, env);
-            lts.states()
-                .iter()
-                .cloned()
-                .map(|s| {
-                    lts.transitions()
-                        .get(&(s, step.to_owned()))
-                        .cloned()
-                        .map(|ts| (s, ts))
-                        .unwrap_or((s, vec![]))
-                })
+            lts.step_transitions(step)
                 .filter(|(_s, ts)| ts.iter().any(|t| sat.contains(t)))
                 .map(|(s, _ts)| s)
                 .collect()
         },
         Box { step, f: g } => {
             let sat = eval_inner(lts, g, prev_fixpoint, env);
-            lts.states()
-                .iter()
-                .cloned()
-                .map(|s| {
-                    lts.transitions()
-                        .get(&(s, step.to_owned()))
-                        .cloned()
-                        .map(|ts| (s, ts))
-                        .unwrap_or((s, vec![]))
-                })
+            lts.step_transitions(step)
                 .filter(|(_s, ts)| ts.iter().all(|t| sat.contains(t)))
                 .map(|(s, _ts)| s)
                 .collect()

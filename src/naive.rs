@@ -16,7 +16,6 @@ fn eval_inner(
     use mc::Formula::*;
 
     match f {
-        // Var { name } => env.get(&name).cloned().unwrap_or_else(BTreeSet::new),
         Var { name } => env[&name].clone(),
         True => lts.states().clone(),
         False => BTreeSet::new(),
@@ -30,32 +29,14 @@ fn eval_inner(
             .collect(),
         Diamond { step, f } => {
             let sat = eval_inner(lts, f, env);
-            lts.states()
-                .iter()
-                .cloned()
-                .map(|s| {
-                    lts.transitions()
-                        .get(&(s, step.to_owned()))
-                        .cloned()
-                        .map(|ts| (s, ts))
-                        .unwrap_or((s, vec![]))
-                })
+            lts.step_transitions(step)
                 .filter(|(_s, ts)| ts.iter().any(|t| sat.contains(t)))
                 .map(|(s, _ts)| s)
                 .collect()
         },
         Box { step, f } => {
             let sat = eval_inner(lts, f, env);
-            lts.states()
-                .iter()
-                .cloned()
-                .map(|s| {
-                    lts.transitions()
-                        .get(&(s, step.to_owned()))
-                        .cloned()
-                        .map(|ts| (s, ts))
-                        .unwrap_or((s, vec![]))
-                })
+            lts.step_transitions(step)
                 .filter(|(_s, ts)| ts.iter().all(|t| sat.contains(t)))
                 .map(|(s, _ts)| s)
                 .collect()

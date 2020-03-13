@@ -34,6 +34,19 @@ impl Lts {
         &self.trans
     }
 
+    pub fn step_transitions<'a>(
+        &'a self,
+        step: &'a str,
+    ) -> impl Iterator<Item = (State, Vec<State>)> + 'a {
+        self.states().iter().cloned().map(move |s| {
+            self.transitions()
+                .get(&(s, step.to_owned()))
+                .cloned()
+                .map(|ts| (s, ts))
+                .unwrap_or((s, vec![]))
+        })
+    }
+
     pub fn init(&self) -> State {
         self.init
     }
