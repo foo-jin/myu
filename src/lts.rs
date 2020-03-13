@@ -21,7 +21,6 @@ pub type Label = String;
 pub struct Lts {
     init: State,
     states: BTreeSet<State>,
-    labels: BTreeSet<Label>,
     trans: HashMap<(State, Label), Vec<State>>,
 }
 
@@ -30,16 +29,12 @@ impl Lts {
         &self.states
     }
 
-    pub fn transitions(&self) -> &HashMap<(State, Label), Vec<State>> {
-        &self.trans
-    }
-
     pub fn step_transitions<'a>(
         &'a self,
         step: &'a str,
     ) -> impl Iterator<Item = (State, Vec<State>)> + 'a {
         self.states().iter().cloned().map(move |s| {
-            self.transitions()
+            self.trans
                 .get(&(s, step.to_owned()))
                 .cloned()
                 .map(|ts| (s, ts))
@@ -54,7 +49,6 @@ impl Lts {
     fn add_edge(&mut self, start: State, label: &str, end: State) {
         self.states.insert(start);
         self.states.insert(end);
-        self.labels.insert(label.to_owned());
         self.trans
             .entry((start, label.to_owned()))
             .or_insert_with(Vec::new)
