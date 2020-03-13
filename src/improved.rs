@@ -1,7 +1,11 @@
-use super::*;
-use lts::Lts;
-use mu_calculus as mc;
-use std::collections::{BTreeSet, HashMap};
+use crate::{
+    lts::{self, Lts},
+    mu_calculus as mc,
+};
+use std::{
+    collections::{BTreeSet, HashMap},
+    sync::atomic::Ordering,
+};
 
 pub fn eval(lts: &Lts, f: &mc::Formula) -> BTreeSet<lts::State> {
     let mut env = HashMap::new();

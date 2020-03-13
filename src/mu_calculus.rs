@@ -81,7 +81,7 @@ impl Formula {
             True | False | Var { .. } => 0,
             Box { f, .. } | Diamond { f, .. } => f.dependent_ad(),
             And { f1, f2 } | Or { f1, f2 } =>
-                u16::max(f1.dependent_ad(), f2.dependent_ad()),
+                f1.dependent_ad().max(f2.dependent_ad()),
             Mu { var, f } => 1.max(f.dependent_ad()).max(
                 1 + f
                     .subformulas()
