@@ -1,6 +1,6 @@
 [package]
 name = "myu"
-version = "1.0.0"
+version = "1.0.1"
 authors = ["Frank de Jong <f.j.p.d.jong@student.tue.nl>"]
 edition = "2018"
 
